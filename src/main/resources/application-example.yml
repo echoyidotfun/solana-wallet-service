@@ -1,0 +1,74 @@
+spring:
+  application:
+    name: wallet-service
+
+  # 数据源配置
+  datasource:
+    hikari:
+      connection-timeout: 30000
+      maximum-pool-size: 10
+    url: jdbc:mysql://localhost:3306/your_database_name?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
+    username: your_username
+    password: your_password
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+        dialect: org.hibernate.dialect.MySQLDialect
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+# 服务器配置
+server:
+  port: 8080
+  compression:
+    enabled: true
+    mime-types: application/json,application/xml,text/html,text/plain
+    min-response-size: 2048
+
+# API接口配置
+solanatracker:
+  api:
+    baseUrl: https://data.solanatracker.io
+    key: your_api_key
+
+# 数据同步任务配置
+app:
+  scheduler:
+    # 统一同步任务间隔 (6000秒)
+    unified-sync:
+      interval: 6000000
+    # 各子任务间隔，用于单独运行时的配置（目前已合并到统一任务）
+    trending-tokens:
+      interval: 120000 # 2分钟
+    volume-tokens:
+      interval: 120000 # 2分钟
+    latest-tokens:
+      interval: 180000 # 3分钟
+    # API调用间隔，防止限流 (2秒)
+    api-call-interval: 2000
+
+# 日志配置
+logging:
+  file:
+    name: logs/wallet-service.log
+    max-size: 10MB
+    max-history: 10
+  level:
+    root: INFO
+    com.wallet.service: INFO
+    org.springframework.web.client.RestTemplate: WARN
+    org.springframework.web.client.ResourceAccessException: DEBUG
+    org.hibernate: WARN
+    org.springframework.orm.jpa: WARN
+    org.apache.http.client: WARN
+    org.springframework.retry: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
