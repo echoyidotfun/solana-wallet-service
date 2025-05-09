@@ -1,0 +1,11 @@
+.env
+.vscode
+mvnw*
+
+# 忽略所有 .log 文件
+logs
+*.log
+
+docs
+
+
