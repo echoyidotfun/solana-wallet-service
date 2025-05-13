@@ -2,6 +2,7 @@ package com.wallet.service.datapipe.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wallet.service.datapipe.dto.TokenInfoDto;
+import com.wallet.service.datapipe.dto.TraderDto;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,6 +25,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import java.math.BigDecimal;
+import lombok.Data;
 
 /**
  * SolanaTracker API调用服务
@@ -42,6 +50,15 @@ public class SolanaTrackerService {
     
     @Value("${solanatracker.api.baseUrl:https://data.solanatracker.io}")
     private String BASE_URL;
+    
+    // Cache for failed token queries
+    private final Map<String, Long> failedTokenQueryCache = new ConcurrentHashMap<>();
+    @Value("${solanatracker.api.failed-token-block-duration-minutes:30}")
+    private long failedTokenBlockDurationMinutes;
+
+    private long getFailedTokenBlockDurationMs() {
+        return TimeUnit.MINUTES.toMillis(failedTokenBlockDurationMinutes);
+    }
     
     // 限流控制 - 免费方案每秒1个请求
     private final long API_RATE_LIMIT_MS = 1100; // 略大于1秒，确保不超限
@@ -77,25 +94,94 @@ public class SolanaTrackerService {
     }
     
     /**
+     * 获取顶级交易者列表
+     * @param page 页码 (1-indexed)
+     * @param sortBy 排序字段 ("total" or "winpercentage")
+     * @param expandPnl 是否展开PNL详情
+     * @return 顶级交易者数据列表
+     */
+    public TraderDto getTopTraders(int page, String sortBy, boolean expandPnl) {
+        String url = BASE_URL + "/top-traders/all/" + page + "?sortBy=" + sortBy + "&expandPnl=" + expandPnl;
+        try {
+            ResponseEntity<String> response = makeApiCall(url);
+            if (response.getBody() == null || response.getBody().isEmpty() || response.getBody().equals("{}")) {
+                 log.warn("获取顶级交易者数据返回为空或无效: {}, page {}", url, page);
+                 return new TraderDto(); // Return empty DTO
+            }
+            return objectMapper.readValue(response.getBody(), TraderDto.class);
+        } catch (HttpClientErrorException.NotFound e) {
+            log.warn("顶级交易者数据未找到 (404): {}, page {}", url, page);
+            return new TraderDto();
+        } catch (ResourceAccessException e) {
+            log.debug("获取顶级交易者数据时连接超时: {}, page {}", url, page);
+            return new TraderDto();
+        } catch (Exception e) {
+            log.error("获取顶级交易者数据失败: {}, page {}, Error: {}", url, page, e.getMessage());
+            return new TraderDto();
+        }
+    }
+    
+    /**
      * 获取指定代币信息
      * @param mintAddress 代币地址
      * @return 代币信息
      */
     public TokenInfoDto getTokenInfo(String mintAddress) {
+        // Check cache for temporarily blocked tokens
+        Long failureTimestamp = failedTokenQueryCache.get(mintAddress);
+        if (failureTimestamp != null) {
+            if (System.currentTimeMillis() < failureTimestamp + getFailedTokenBlockDurationMs()) {
+                log.warn("代币 {} 由于近期查询失败或网络问题，暂时被屏蔽，跳过本次API查询。", mintAddress);
+                return null;
+            } else {
+                failedTokenQueryCache.remove(mintAddress); // Expired
+                log.info("代币 {} 的查询屏蔽已过期，将尝试重新查询。", mintAddress);
+            }
+        }
+
         String url = BASE_URL + "/tokens/" + mintAddress;
         
         try {
             ResponseEntity<String> response = makeApiCall(url);
-            return objectMapper.readValue(response.getBody(), TokenInfoDto.class);
+            
+            // Check if response from makeApiCall (after retries and recovery) is valid
+            if (response == null || response.getBody() == null || response.getBody().isEmpty() || 
+                response.getBody().equals("{}") || response.getBody().equals("[]")) {
+                 log.warn("从SolanaTracker API获取代币 {} 的响应为空或无效，即使在重试后。将临时屏蔽。", mintAddress);
+                 failedTokenQueryCache.put(mintAddress, System.currentTimeMillis());
+                 return null;
+            }
+
+            TokenInfoDto tokenInfo = objectMapper.readValue(response.getBody(), TokenInfoDto.class);
+
+            // Validate if meaningful data was parsed
+            if (tokenInfo != null && tokenInfo.getToken() != null && tokenInfo.getToken().getMint() != null) {
+                // If successfully parsed and was in cache (e.g. due to previous temporary error), remove it.
+                if (failedTokenQueryCache.containsKey(mintAddress)) {
+                    failedTokenQueryCache.remove(mintAddress);
+                    log.info("代币 {} 查询成功，已从屏蔽缓存中移除。", mintAddress);
+                }
+                return tokenInfo;
+            } else {
+                log.warn("解析后未能从代币 {} 获取有效元数据 (可能响应为空或结构不符)，将临时屏蔽。", mintAddress);
+                failedTokenQueryCache.put(mintAddress, System.currentTimeMillis());
+                return null;
+            }
         } catch (HttpClientErrorException.NotFound e) {
-            log.warn("代币不存在: {}", mintAddress);
+            log.warn("代币 {} 不存在 (404)，将临时屏蔽。", mintAddress);
+            failedTokenQueryCache.put(mintAddress, System.currentTimeMillis());
             return null;
-        } catch (ResourceAccessException e) {
-            // 连接超时异常，不打印详细堆栈信息
-            log.debug("获取代币信息时连接超时: {}", mintAddress);
+        } catch (ResourceAccessException e) { // Typically network issues like timeout
+            log.warn("获取代币 {} 信息时发生资源访问错误 (如连接超时)，将临时屏蔽。", mintAddress);
+            failedTokenQueryCache.put(mintAddress, System.currentTimeMillis());
             return null;
-        } catch (Exception e) {
-            log.error("获取代币信息失败: {}", mintAddress);
+        } catch (JsonProcessingException e) {
+            log.error("解析代币 {} 的JSON响应时发生错误，将临时屏蔽。响应体可能无效。Error: {}", mintAddress, e.getMessage());
+            failedTokenQueryCache.put(mintAddress, System.currentTimeMillis());
+            return null;
+        } catch (Exception e) { // Catch-all for other unexpected errors during fetch/parse
+            log.error("获取或解析代币 {} 信息时发生未知错误，将临时屏蔽。Error: {}", mintAddress, e.getMessage(), e);
+            failedTokenQueryCache.put(mintAddress, System.currentTimeMillis());
             return null;
         }
     }
@@ -175,9 +261,15 @@ public class SolanaTrackerService {
             // 连接超时异常，使用debug级别并省略堆栈
             log.debug("API调用重试耗尽，连接超时: {}", url);
         } else {
-            log.warn("API调用重试耗尽: {}, 错误类型: {}", url, e.getClass().getSimpleName());
+            log.warn("API调用重试耗尽: {}, 错误类型: {}, 错误消息: {}", url, e.getClass().getSimpleName(), e.getMessage());
         }
         // 返回一个空的成功响应，避免整个服务因为API失败而崩溃
+        // For list responses, an empty JSON array "[]" might be more appropriate
+        // For object responses, an empty JSON object "{}" is fine
+        // Adjust if specific endpoints expect different empty valid responses
+        if (url.contains("/tokens/latest") || url.contains("/tokens/trending") || url.contains("/tokens/volume")) {
+            return new ResponseEntity<>("[]", HttpStatus.OK);
+        }
         return new ResponseEntity<>("{}", HttpStatus.OK);
     }
 }

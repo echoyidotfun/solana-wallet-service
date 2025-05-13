@@ -38,7 +38,7 @@ public class TokenDataService {
     private final TokenTransactionStatsRepository tokenTransactionStatsRepository;
     private final TokenTrendingRankingRepository trendingRepository;
     private final SolanaTrackerService solanaTrackerService;
-    private final TokenDataSyncService tokenDataSyncService;
+    private final DataSyncService dataSyncService;
     
     /**
      * 获取热点代币列表
@@ -219,7 +219,7 @@ public class TokenDataService {
             }
             
             // 保存获取到的数据到数据库
-            tokenDataSyncService.saveTokenData(mintAddress, tokenInfo);
+            dataSyncService.saveTokenData(mintAddress, tokenInfo);
             
             // 递归调用本地数据库获取方法
             return getTokenInfo(mintAddress);

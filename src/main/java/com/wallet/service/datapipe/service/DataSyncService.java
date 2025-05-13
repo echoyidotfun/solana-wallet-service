@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.wallet.service.datapipe.dto.TokenInfoDto;
+import com.wallet.service.datapipe.dto.TraderDto;
 import com.wallet.service.datapipe.model.Token;
 import com.wallet.service.datapipe.model.TokenMarketData;
 import com.wallet.service.datapipe.model.TokenPriceChange;
@@ -22,9 +23,17 @@ import com.wallet.service.datapipe.repository.TokenPriceChangeRepository;
 import com.wallet.service.datapipe.repository.TokenRepository;
 import com.wallet.service.datapipe.repository.TokenTransactionStatsRepository;
 import com.wallet.service.datapipe.repository.TokenTrendingRankingRepository;
+import com.wallet.service.datapipe.model.Trader;
+import com.wallet.service.datapipe.repository.TraderRepository;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.Set;
+import java.util.HashSet;
+import java.util.stream.Collectors;
 
 /**
  * 代币数据同步服务，定时从数据源获取并更新数据库
@@ -32,7 +41,7 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 @Slf4j
 @RequiredArgsConstructor
-public class TokenDataSyncService {
+public class DataSyncService {
     
     private final SolanaTrackerService solanaTrackerService;
     private final TokenRepository tokenRepository;
@@ -41,6 +50,7 @@ public class TokenDataSyncService {
     private final TokenTransactionStatsRepository tokenTransactionStatsRepository;
     private final TokenTrendingRankingRepository tokenTrendingRankingRepository;
     private final TransactionTemplate transactionTemplate;
+    private final TraderRepository traderRepository;
     
     // 热点趋势代币时间范围
     private static final String[] TREND_TIMEFRAMES = {"1h", "24h"};
@@ -51,6 +61,11 @@ public class TokenDataSyncService {
     // API调用间隔(毫秒)，防止限流
     @Value("${app.scheduler.api-call-interval:2000}")
     private long apiCallInterval;
+    
+    // 定时任务参数 - 聪明钱钱包同步
+    private static final int TRADER_PAGES_TO_FETCH = 10;
+    private static final BigDecimal MIN_PROFITABILITY_FOR_TRADER = new BigDecimal("0.20"); // 20%
+    private static final Double MIN_WIN_PERCENTAGE_FOR_TRADER = 50.0; // 50%
     
     /**
      * 统一数据同步任务
@@ -64,21 +79,24 @@ public class TokenDataSyncService {
             // 1. 同步热点趋势代币
             syncTrendingTokensInternal();
             
-            // 等待一定时间，避免API限流
             sleep(apiCallInterval);
             
             // 2. 同步交易量代币
             syncVolumeTokensInternal();
             
-            // 等待一定时间，避免API限流
             sleep(apiCallInterval);
             
             // 3. 同步最新代币
             syncLatestTokensInternal();
+
+            sleep(apiCallInterval);
+            
+            // 4. 同步顶级交易者/聪明钱数据
+            syncTraderDataInternal();
             
             log.info(">>>>>>统一数据同步任务完成<<<<<<");
         } catch (Exception e) {
-            log.error("!!!!!!统一数据同步任务执行失败!!!!!!", e);
+            log.error("!!!!!!统一数据同步任务执行失败!!!!!!", e.getMessage());
         }
     }
     
@@ -123,7 +141,7 @@ public class TokenDataSyncService {
                 
                 log.info("同步{}热点趋势代币完成", timeframe);
             } catch (Exception e) {
-                log.error("同步{}热点趋势代币发生错误", timeframe, e);
+                log.error("同步{}热点趋势代币发生错误", timeframe, e.getMessage());
             }
         }
     }
@@ -161,7 +179,7 @@ public class TokenDataSyncService {
                     sleep(apiCallInterval);
                 }
             } catch (Exception e) {
-                log.error("同步交易量最大的代币发生错误", e);
+                log.error("同步交易量最大的代币发生错误", e.getMessage());
             }
         }
         
@@ -189,13 +207,13 @@ public class TokenDataSyncService {
                     // 保存代币基本信息和相关数据
                     saveTokenData(mintAddress, tokenInfo);
                 } catch (Exception e) {
-                    log.error("保存代币数据失败: {}", mintAddress, e);
+                    log.error("保存代币数据失败: {}", mintAddress, e.getMessage());
                 }
             }
             
             log.info("同步最新代币完成");
         } catch (Exception e) {
-            log.error("同步最新代币发生错误", e);
+            log.error("同步最新代币发生错误", e.getMessage());
         }
     }
     
@@ -391,7 +409,8 @@ public class TokenDataSyncService {
         try {
             tokenMarketDataRepository.save(marketData);
         } catch (Exception e) {
-            log.error("保存代币市场数据失败: {} ({})", mintAddress, e.getMessage());
+            log.error("保存代币市场数据时发生未预期错误，已跳过该记录。代币地址: {}. 错误详情: ", mintAddress, e);
+            // 这条市场数据将不会被保存，程序会继续处理下一个代币/数据。
         }
     }
     
@@ -471,5 +490,99 @@ public class TokenDataSyncService {
         json.append("]");
         
         return json.toString();
+    }
+
+    /**
+     * 同步顶级交易者数据 (内部方法)
+     * 从SolanaTracker API获取顶级交易者数据，并根据盈利能力和胜率筛选。
+     */
+    @Transactional
+    public void syncTraderDataInternal() {
+        log.info("开始同步顶级交易者数据");
+        int walletsProcessed = 0;
+        int tradersIdentified = 0;
+
+        try {
+            for (int page = 1; page <= TRADER_PAGES_TO_FETCH; page++) {
+                log.info("获取顶级交易者数据 - 第 {} 页", page);
+                TraderDto response = solanaTrackerService.getTopTraders(page, "total", false);
+
+                if (response == null || response.getWallets() == null || response.getWallets().isEmpty()) {
+                    log.warn("从API获取的顶级交易者数据为空或无效 (第 {} 页)，停止当前页处理。", page);
+                    if (page < TRADER_PAGES_TO_FETCH) sleep(apiCallInterval); 
+                    continue;
+                }
+
+                for (TraderDto.WalletDataDto walletData : response.getWallets()) {
+                    if (walletData == null || walletData.getWallet() == null || walletData.getSummary() == null) {
+                        log.warn("发现无效的钱包数据，跳过。Wallet: {}, Summary: {}", walletData != null ? walletData.getWallet() : "null", walletData != null ? walletData.getSummary() : "null");
+                        continue;
+                    }
+                    walletsProcessed++;
+                    TraderDto.WalletSummaryDto summary = walletData.getSummary();
+                    String walletAddress = walletData.getWallet();
+
+                    // Initial Filtering Conditions (as before)
+                    boolean initialFilterPassed = false;
+                    BigDecimal roi = BigDecimal.ZERO;
+                    if (summary.getTotalInvested() != null && summary.getTotalInvested().compareTo(BigDecimal.ZERO) > 0 && summary.getRealized() != null) {
+                        roi = summary.getRoi();
+                        if (roi.compareTo(MIN_PROFITABILITY_FOR_TRADER) > 0) {
+                            initialFilterPassed = true;
+                        }
+                    }
+                    boolean initialHighWinRate = summary.getWinPercentage() != null && summary.getWinPercentage() > MIN_WIN_PERCENTAGE_FOR_TRADER;
+
+                    if (initialFilterPassed && initialHighWinRate) {
+                        tradersIdentified++;
+                        Trader trader = traderRepository.findById(walletAddress)
+                                .orElse(new Trader(walletAddress));
+                        
+                        trader.setRealizedPnl(summary.getRealized());
+                        trader.setUnrealizedPnl(summary.getUnrealized());
+                        trader.setTotalPnl(summary.getTotal());
+                        trader.setTotalInvested(summary.getTotalInvested());
+                        trader.setTotalWins(summary.getTotalWins());
+                        trader.setTotalLosses(summary.getTotalLosses());
+                        trader.setWinPercentage(summary.getWinPercentage());
+                        trader.setAverageBuyAmount(summary.getAverageBuyAmount());
+                        trader.setLastUpdatedAt(System.currentTimeMillis());
+                        trader.setTags(String.join(",", getTags(summary)));
+
+                        traderRepository.save(trader);
+                    }
+                }
+                if (page < TRADER_PAGES_TO_FETCH) {
+                    sleep(apiCallInterval);
+                }
+            }
+            log.info("顶级交易者数据同步完成。共处理 {} 个钱包，识别并保存/更新 {} 个交易者。", walletsProcessed, tradersIdentified);
+        } catch (Exception e) {
+            log.error("同步顶级交易者数据任务执行失败!!!!!!", e);
+        }
+    }
+
+    private Set<String> getTags(TraderDto.WalletSummaryDto summary) {
+        // Enhanced Tagging Logic
+        Set<String> tags = new HashSet<>();
+
+        // Specific tags based on new criteria
+        if (summary.getWinPercentage() != null && summary.getWinPercentage() > 90) {
+            tags.add("超高胜率");
+        } else if (summary.getWinPercentage()!= null && summary.getWinPercentage() > 60) {
+            tags.add("高胜率");
+        }
+        
+        int totalTxns = 0;
+        if (summary.getTotalWins() != null) totalTxns += summary.getTotalWins();
+        if (summary.getTotalLosses() != null) totalTxns += summary.getTotalLosses();
+        if (totalTxns > 5000) {
+            tags.add("高频交易员");
+        }
+        
+        if (summary.getRoi().compareTo(new BigDecimal("2.00")) > 0) { // Profitability > 200%
+            tags.add("高盈利率");
+        }
+        return tags;
     }
 } 

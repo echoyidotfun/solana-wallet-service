@@ -26,25 +26,25 @@ public class TokenMarketData {
     
     private String market;       // 市场类型 (raydium-clmm, jupiter, etc.)
     
-    @Column(precision = 30, scale = 18)
+    @Column(precision = 30, scale = 12)
     private BigDecimal priceQuote;  // 用报价货币表示的价格
     
-    @Column(precision = 30, scale = 18)
+    @Column(precision = 30, scale = 12)
     private BigDecimal priceUsd;    // 美元价格
     
-    @Column(precision = 30, scale = 18)
+    @Column(precision = 30, scale = 12)
     private BigDecimal liquidityQuote;  // 流动性(报价货币)
     
-    @Column(precision = 30, scale = 18)
+    @Column(precision = 38, scale = 12)
     private BigDecimal liquidityUsd;    // 流动性(USD)
     
-    @Column(precision = 30, scale = 18)
+    @Column(precision = 38, scale = 12)
     private BigDecimal marketCapQuote;  // 市值(报价货币)
     
-    @Column(precision = 30, scale = 18)
+    @Column(precision = 38, scale = 12)
     private BigDecimal marketCapUsd;    // 市值(USD)
     
-    @Column(precision = 30, scale = 10)
+    @Column(precision = 38, scale = 10)
     private BigDecimal tokenSupply;     // 代币供应量
     
     @Column(precision = 10, scale = 2)
