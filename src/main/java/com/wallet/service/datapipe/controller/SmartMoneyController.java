@@ -10,8 +10,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.wallet.service.datapipe.dto.api.TokenRankingDto;
-import com.wallet.service.datapipe.dto.api.WalletTransactionDto;
+import com.wallet.service.datapipe.dto.txs.TokenRankingDto;
+import com.wallet.service.datapipe.dto.txs.WalletTransactionDto;
 import com.wallet.service.datapipe.service.SmartMoneyService;
 
 import lombok.RequiredArgsConstructor;

@@ -1,8 +1,9 @@
-package com.wallet.service.datapipe.service;
+package com.wallet.service.datapipe.service.sync;
 
 import com.wallet.service.datapipe.dto.TokenInfoDto;
 import com.wallet.service.datapipe.model.Token;
 import com.wallet.service.datapipe.repository.TokenRepository;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -36,12 +37,6 @@ public class TokenMetadataFetcherService {
             return Optional.empty();
         }
 
-        // Check if token already exists to avoid unnecessary API calls if strict one-time fetch is desired
-        // However, DataSyncService.saveTokenData will handle upsert logic, so this check is optional here.
-        // if (tokenRepository.existsByMintAddress(mintAddress)) {
-        //     log.info("代币 {} 的元数据已存在，跳过SolanaTracker查询。", mintAddress);
-        //     return tokenRepository.findByMintAddress(mintAddress);
-        // }
 
         log.info("开始从SolanaTracker获取代币 {} 的完整数据", mintAddress);
         TokenInfoDto tokenInfo = solanaTrackerService.getTokenInfo(mintAddress);
@@ -52,11 +47,8 @@ public class TokenMetadataFetcherService {
         }
 
         try {
-            // Delegate to DataSyncService to save all related token data
             dataSyncService.saveTokenData(mintAddress, tokenInfo);
             log.info("已调用DataSyncService处理代币 {} 的数据保存。", mintAddress);
-            // We return the token from repository after DataSyncService has processed it.
-            // This assumes DataSyncService.saveToken updates the DB synchronously within its transaction.
             return tokenRepository.findByMintAddress(mintAddress);
         } catch (Exception e) {
             log.error("调用DataSyncService保存代币 {} 数据时发生错误: {}", mintAddress, e.getMessage(), e);

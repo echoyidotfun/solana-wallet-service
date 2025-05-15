@@ -1,6 +1,6 @@
 package com.wallet.service.datapipe.controller;
 
-import com.wallet.service.datapipe.service.TransactionWebhookService;
+import com.wallet.service.datapipe.service.QuickNodeWebhookService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class QuickNodeWebhookController {
 
-    private final TransactionWebhookService transactionWebhookService;
+    private final QuickNodeWebhookService quicknodeWebhookService;
 
     /**
      * 处理来自QuickNode的交易事件webhook
@@ -29,7 +29,7 @@ public class QuickNodeWebhookController {
 
         try {
             // 处理交易事件
-            transactionWebhookService.processQuickNodeEvents(events);
+            quicknodeWebhookService.processQuickNodeEvents(events);
             return ResponseEntity.ok("Events processed successfully");
         } catch (Exception e) {
             log.error("处理QuickNode交易事件时发生错误: {}", e.getMessage(), e);

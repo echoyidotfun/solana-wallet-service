@@ -1,4 +1,4 @@
-package com.wallet.service.datapipe.service;
+package com.wallet.service.datapipe.service.sync;
 
 import java.util.ArrayList;
 import java.util.List;

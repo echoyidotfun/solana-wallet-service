@@ -27,6 +27,7 @@ public class Trader {
     private Integer totalLosses;
     private Double winPercentage;
     private BigDecimal averageBuyAmount;
+    private Integer sniperScore; // 狙击手分数
 
     @Column(columnDefinition = "TEXT")
     private String tags;

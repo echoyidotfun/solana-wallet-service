@@ -1,8 +1,8 @@
 package com.wallet.service.datapipe.service;
 
-import com.wallet.service.datapipe.dto.api.DetailedTokenTransactionDto;
-import com.wallet.service.datapipe.dto.api.TokenRankingDto;
-import com.wallet.service.datapipe.dto.api.WalletTransactionDto;
+import com.wallet.service.datapipe.dto.txs.DetailedTokenTransactionDto;
+import com.wallet.service.datapipe.dto.txs.TokenRankingDto;
+import com.wallet.service.datapipe.dto.txs.WalletTransactionDto;
 import com.wallet.service.datapipe.model.SmartMoneyTransaction;
 import com.wallet.service.datapipe.model.Trader;
 import com.wallet.service.datapipe.repository.SmartMoneyTransactionRepository;
@@ -40,7 +40,6 @@ public class SmartMoneyService {
     private final TraderRepository traderRepository;
     private final TokenRepository tokenRepository;
 
-    private static final String SOL_MINT_ADDRESS = "So11111111111111111111111111111111111111112";
     private static final int DEFAULT_PAGE_SIZE = 20;
     private static final int DEFAULT_RANKING_LIMIT = 10;
     private static final int DEFAULT_HOURS_LOOKBACK = 24;

@@ -1,26 +1,42 @@
 package com.wallet.service.room.service;
 
+import com.wallet.service.datapipe.repository.TokenRepository;
+import com.wallet.service.datapipe.service.subscription.SubscriptionManagerService;
 import com.wallet.service.room.dto.RoomStatusDTO;
 import com.wallet.service.room.model.RoomMember;
 import com.wallet.service.room.model.TradeRoom;
 import com.wallet.service.room.repository.RoomMemberRepository;
 import com.wallet.service.room.repository.TradeRoomRepository;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
 public class TradeRoomService {
+
+    private final TokenRepository tokenRepository;
     
     private final TradeRoomRepository tradeRoomRepository;
     private final RoomMemberRepository roomMemberRepository;
+    private final SubscriptionManagerService subscriptionManagerService;
+    
+    @Autowired
+    public TradeRoomService(TradeRoomRepository tradeRoomRepository, 
+                            RoomMemberRepository roomMemberRepository, 
+                            @Lazy SubscriptionManagerService subscriptionManagerService, TokenRepository tokenRepository) {
+        this.tradeRoomRepository = tradeRoomRepository;
+        this.roomMemberRepository = roomMemberRepository;
+        this.subscriptionManagerService = subscriptionManagerService;
+        this.tokenRepository = tokenRepository;
+    }
     
     @Transactional
     public TradeRoom createRoom(String creatorWallet, String tokenAddress, Integer recycleHours, String password) {
@@ -28,6 +44,11 @@ public class TradeRoomService {
         room.setRoomId(UUID.randomUUID().toString());
         room.setCreatorWallet(creatorWallet);
         room.setTokenAddress(tokenAddress);
+        tokenRepository.findByMintAddress(tokenAddress)
+            .ifPresent(token -> {
+                room.setTokenName(token.getName());
+                room.setTokenSymbol(token.getSymbol());
+            });
         
         if (recycleHours != null) {
             room.setRecycleHours(recycleHours);
@@ -43,6 +64,8 @@ public class TradeRoomService {
         // 创建者自动加入房间
         TradeRoom savedRoom = tradeRoomRepository.save(room);
         addMember(savedRoom, creatorWallet);
+        // 处理用户钱包地址订阅
+        subscriptionManagerService.handleUserJoinedRoom(creatorWallet, savedRoom.getRoomId());
         
         return savedRoom;
     }
@@ -78,6 +101,9 @@ public class TradeRoomService {
                     () -> addMember(room, walletAddress)
                 );
         
+        // Notify SubscriptionManagerService
+        subscriptionManagerService.handleUserJoinedRoom(walletAddress, roomId);
+
         // 更新房间活跃时间
         room.setLastActiveTime(LocalDateTime.now());
         tradeRoomRepository.save(room);
@@ -93,6 +119,8 @@ public class TradeRoomService {
                     member.setActive(false);
                     member.setLeaveTime(LocalDateTime.now());
                     roomMemberRepository.save(member);
+                    // Notify SubscriptionManagerService
+                    subscriptionManagerService.handleUserLeftRoom(walletAddress, roomId);
                 });
     }
     
@@ -130,6 +158,11 @@ public class TradeRoomService {
         return statusDTO;
     }
 
+    // Added to allow SubscriptionManagerService to fetch full room details
+    public Optional<TradeRoom> getTradeRoomByRoomId(String roomId) {
+        return tradeRoomRepository.findByRoomId(roomId);
+    }
+
     /**
      * Get all rooms associated with a wallet address, including both active and inactive rooms
      * 
@@ -161,6 +194,8 @@ public class TradeRoomService {
     private void closeRoomInternal(TradeRoom room) {
         room.setStatus(TradeRoom.RoomStatus.CLOSED);
         tradeRoomRepository.save(room);
+
+        subscriptionManagerService.handleRoomClosed(room.getRoomId());
 
         roomMemberRepository.findByRoomAndActiveTrue(room)
             .forEach(member -> {

@@ -1,4 +1,4 @@
-package com.wallet.service.room.config;
+package com.wallet.service.config;
 
 import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;

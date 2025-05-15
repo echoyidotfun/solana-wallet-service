@@ -1,4 +1,4 @@
-package com.wallet.service.datapipe.dto.api;
+package com.wallet.service.datapipe.dto.txs;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

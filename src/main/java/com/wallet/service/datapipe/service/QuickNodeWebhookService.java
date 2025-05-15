@@ -10,6 +10,8 @@ import com.wallet.service.datapipe.repository.TokenMarketDataRepository;
 import com.wallet.service.datapipe.model.Trader;
 import com.wallet.service.datapipe.repository.SmartMoneyTransactionRepository;
 import com.wallet.service.datapipe.repository.TraderRepository;
+import com.wallet.service.datapipe.service.analysis.TransactionAnalysisService;
+import com.wallet.service.datapipe.service.sync.TokenMetadataFetcherService;
 import com.wallet.service.datapipe.repository.TokenRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,7 +30,7 @@ import java.util.Optional;
 @Service
 @Slf4j
 @RequiredArgsConstructor
-public class TransactionWebhookService {
+public class QuickNodeWebhookService {
 
     private static final String SOL_MINT = "So11111111111111111111111111111111111111112";
 

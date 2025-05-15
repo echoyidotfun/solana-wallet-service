@@ -1,4 +1,4 @@
-package com.wallet.service.datapipe.service;
+package com.wallet.service.datapipe.service.sync;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wallet.service.datapipe.dto.TokenInfoDto;

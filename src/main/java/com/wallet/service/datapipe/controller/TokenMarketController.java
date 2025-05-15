@@ -1,7 +1,7 @@
 package com.wallet.service.datapipe.controller;
 
 import com.wallet.service.common.dto.ApiResponse;
-import com.wallet.service.datapipe.service.TokenDataService;
+import com.wallet.service.datapipe.service.TokenMarketService;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -21,7 +21,7 @@ import java.util.Map;
 @Slf4j
 public class TokenMarketController {
     
-    private final TokenDataService tokenDataService;
+    private final TokenMarketService tokenMarketService;
     
     /**
      * 获取热点代币榜单
@@ -36,7 +36,7 @@ public class TokenMarketController {
             @RequestParam(defaultValue = "50") int limit) {
         
         log.info("获取热点代币榜单，timeframe={}, limit={}", timeframe, limit);
-        List<Map<String, Object>> trendingTokens = tokenDataService.getTrendingTokens(timeframe, limit);
+        List<Map<String, Object>> trendingTokens = tokenMarketService.getTrendingTokens(timeframe, limit);
         return ResponseEntity.ok(new ApiResponse<>(true, "成功获取热点代币榜单", trendingTokens));
     }
     
@@ -53,7 +53,7 @@ public class TokenMarketController {
             @RequestParam(defaultValue = "50") int limit) {
         
         log.info("获取交易量榜单，timeframe={}, limit={}", timeframe, limit);
-        List<Map<String, Object>> volumeTokens = tokenDataService.getVolumeTokens(timeframe, limit);
+        List<Map<String, Object>> volumeTokens = tokenMarketService.getVolumeTokens(timeframe, limit);
         return ResponseEntity.ok(new ApiResponse<>(true, "成功获取交易量榜单", volumeTokens));
     }
     
@@ -68,7 +68,7 @@ public class TokenMarketController {
             @RequestParam(defaultValue = "50") int limit) {
         
         log.info("获取最新代币列表，limit={}", limit);
-        List<Map<String, Object>> latestTokens = tokenDataService.getLatestTokens(limit);
+        List<Map<String, Object>> latestTokens = tokenMarketService.getLatestTokens(limit);
         return ResponseEntity.ok(new ApiResponse<>(true, "成功获取最新代币列表", latestTokens));
     }
     
@@ -83,7 +83,7 @@ public class TokenMarketController {
             @PathVariable String mintAddress) {
         
         log.info("获取代币详细信息，mintAddress={}", mintAddress);
-        Map<String, Object> tokenInfo = tokenDataService.getTokenInfo(mintAddress);
+        Map<String, Object> tokenInfo = tokenMarketService.getTokenInfo(mintAddress);
         
         if (tokenInfo == null) {
             return ResponseEntity.ok(new ApiResponse<>(false, "未找到指定代币信息", null));

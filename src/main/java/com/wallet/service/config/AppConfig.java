@@ -1,4 +1,4 @@
-package com.wallet.service.common.config;
+package com.wallet.service.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

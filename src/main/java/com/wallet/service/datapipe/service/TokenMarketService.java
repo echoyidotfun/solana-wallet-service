@@ -11,6 +11,8 @@ import com.wallet.service.datapipe.repository.TokenPriceChangeRepository;
 import com.wallet.service.datapipe.repository.TokenRepository;
 import com.wallet.service.datapipe.repository.TokenTransactionStatsRepository;
 import com.wallet.service.datapipe.repository.TokenTrendingRankingRepository;
+import com.wallet.service.datapipe.service.sync.DataSyncService;
+import com.wallet.service.datapipe.service.sync.SolanaTrackerService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,7 +32,7 @@ import java.util.Optional;
 @Service
 @Slf4j
 @RequiredArgsConstructor
-public class TokenDataService {
+public class TokenMarketService {
     
     private final TokenRepository tokenRepository;
     private final TokenMarketDataRepository tokenMarketDataRepository;
