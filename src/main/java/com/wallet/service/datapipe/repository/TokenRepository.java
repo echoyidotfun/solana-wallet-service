@@ -18,6 +18,8 @@ public interface TokenRepository extends JpaRepository<Token, Long> {
     
     // Find tokens by multiple mint addresses
     List<Token> findByMintAddressIn(List<String> mintAddresses);
+
+    List<Token> findBySymbol(String symbol);
     
     // 获取最新创建的代币列表
     @Query("SELECT t FROM Token t ORDER BY t.createdAt DESC")

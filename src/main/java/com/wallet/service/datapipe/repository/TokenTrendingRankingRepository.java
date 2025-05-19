@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface TokenTrendingRankingRepository extends JpaRepository<TokenTrendingRanking, Long> {
@@ -12,4 +13,6 @@ public interface TokenTrendingRankingRepository extends JpaRepository<TokenTrend
     void deleteByTimeframe(String timeframe);
     
     List<TokenTrendingRanking> findByTimeframeOrderByRankingAsc(String timeframe);
+
+    Optional<TokenTrendingRanking> findByMintAddress(String mintAddress);
 }
