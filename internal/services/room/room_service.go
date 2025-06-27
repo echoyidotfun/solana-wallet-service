@@ -10,8 +10,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
-	"github.com/wallet/service/internal/domain/models"
-	"github.com/wallet/service/internal/domain/repositories"
+	"github.com/emiyaio/solana-wallet-service/internal/domain/models"
+	"github.com/emiyaio/solana-wallet-service/internal/domain/repositories"
 )
 
 var (

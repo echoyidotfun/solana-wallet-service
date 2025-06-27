@@ -2,15 +2,13 @@ package token
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"net/http"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
-	"github.com/wallet/service/internal/domain/models"
-	"github.com/wallet/service/internal/domain/repositories"
+	"github.com/emiyaio/solana-wallet-service/internal/domain/models"
+	"github.com/emiyaio/solana-wallet-service/internal/domain/repositories"
 )
 
 // MarketService defines the interface for token market data operations
@@ -45,21 +43,21 @@ type MarketService interface {
 }
 
 type marketService struct {
-	tokenRepo    repositories.TokenRepository
-	logger       *logrus.Logger
-	httpClient   *http.Client
-	apiBaseURL   string
-	apiKey       string
+	tokenRepo             repositories.TokenRepository
+	solanaTrackerService  SolanaTrackerService
+	logger                *logrus.Logger
 }
 
 // NewMarketService creates a new market service instance
-func NewMarketService(tokenRepo repositories.TokenRepository, logger *logrus.Logger, apiBaseURL, apiKey string) MarketService {
+func NewMarketService(
+	tokenRepo repositories.TokenRepository,
+	solanaTrackerService SolanaTrackerService,
+	logger *logrus.Logger,
+) MarketService {
 	return &marketService{
-		tokenRepo:  tokenRepo,
-		logger:     logger,
-		httpClient: &http.Client{Timeout: 30 * time.Second},
-		apiBaseURL: apiBaseURL,
-		apiKey:     apiKey,
+		tokenRepo:            tokenRepo,
+		solanaTrackerService: solanaTrackerService,
+		logger:               logger,
 	}
 }
 
@@ -185,57 +183,69 @@ func (s *marketService) GetLatestMarketData(ctx context.Context, tokenID uuid.UU
 }
 
 func (s *marketService) SyncMarketDataFromExternalAPI(ctx context.Context, mintAddress string) (*models.TokenMarketData, error) {
-	// Get token info
-	token, err := s.GetToken(ctx, mintAddress)
+	// Get token info from SolanaTracker
+	tokenInfoResp, err := s.solanaTrackerService.GetTokenInfo(mintAddress)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get token: %w", err)
+		return nil, fmt.Errorf("failed to get token info from SolanaTracker: %w", err)
 	}
 	
-	// Fetch from external API
-	url := fmt.Sprintf("%s/tokens/%s/market", s.apiBaseURL, mintAddress)
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	tokenInfo := tokenInfoResp.Data
+	
+	// Get or create token in database
+	token, err := s.tokenRepo.GetByMintAddress(ctx, mintAddress)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+		return nil, fmt.Errorf("failed to get token from database: %w", err)
 	}
 	
-	if s.apiKey != "" {
-		req.Header.Set("Authorization", "Bearer "+s.apiKey)
+	// Create token if not exists
+	if token == nil {
+		createReq := &CreateTokenRequest{
+			MintAddress: mintAddress,
+			Symbol:      tokenInfo.Symbol,
+			Name:        tokenInfo.Name,
+			Decimals:    9, // Default for most SPL tokens
+			LogoURI:     &tokenInfo.LogoURI,
+			Description: &tokenInfo.Description,
+			Website:     &tokenInfo.Website,
+			Twitter:     &tokenInfo.Twitter,
+			Telegram:    &tokenInfo.Telegram,
+		}
+		
+		token, err = s.CreateToken(ctx, createReq)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create token: %w", err)
+		}
 	}
-	req.Header.Set("Content-Type", "application/json")
 	
-	resp, err := s.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch market data: %w", err)
-	}
-	defer resp.Body.Close()
-	
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API returned status %d", resp.StatusCode)
-	}
-	
-	var apiResponse ExternalMarketDataResponse
-	if err := json.NewDecoder(resp.Body).Decode(&apiResponse); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %w", err)
+	// Convert SolanaTracker data to internal model
+	var lastUpdated time.Time
+	if tokenInfo.LastUpdated != "" {
+		if parsed, err := time.Parse(time.RFC3339, tokenInfo.LastUpdated); err == nil {
+			lastUpdated = parsed
+		} else {
+			lastUpdated = time.Now()
+		}
+	} else {
+		lastUpdated = time.Now()
 	}
 	
-	// Convert to internal model
 	marketData := &models.TokenMarketData{
 		TokenID:           token.ID,
-		Price:             apiResponse.Data.Price,
-		PriceUSD:          apiResponse.Data.PriceUSD,
-		Volume24h:         apiResponse.Data.Volume24h,
-		VolumeChange24h:   apiResponse.Data.VolumeChange24h,
-		MarketCap:         apiResponse.Data.MarketCap,
-		MarketCapRank:     apiResponse.Data.MarketCapRank,
-		PriceChange1h:     apiResponse.Data.PriceChange1h,
-		PriceChange24h:    apiResponse.Data.PriceChange24h,
-		PriceChange7d:     apiResponse.Data.PriceChange7d,
-		CirculatingSupply: apiResponse.Data.CirculatingSupply,
-		TotalSupply:       apiResponse.Data.TotalSupply,
-		MaxSupply:         apiResponse.Data.MaxSupply,
-		ATH:               apiResponse.Data.ATH,
-		ATL:               apiResponse.Data.ATL,
-		LastUpdated:       apiResponse.LastUpdated,
+		Price:             tokenInfo.Price,
+		PriceUSD:          tokenInfo.Price, // SolanaTracker already provides USD price
+		Volume24h:         tokenInfo.Volume24h,
+		VolumeChange24h:   tokenInfo.VolumeChange24h,
+		MarketCap:         tokenInfo.MarketCap,
+		MarketCapRank:     tokenInfo.MarketCapRank,
+		PriceChange1h:     tokenInfo.PriceChange1h,
+		PriceChange24h:    tokenInfo.PriceChange24h,
+		PriceChange7d:     tokenInfo.PriceChange7d,
+		CirculatingSupply: tokenInfo.CirculatingSupply,
+		TotalSupply:       tokenInfo.TotalSupply,
+		MaxSupply:         tokenInfo.MaxSupply,
+		ATH:               tokenInfo.ATH,
+		ATL:               tokenInfo.ATL,
+		LastUpdated:       lastUpdated,
 	}
 	
 	// Save to database
@@ -243,11 +253,30 @@ func (s *marketService) SyncMarketDataFromExternalAPI(ctx context.Context, mintA
 		return nil, fmt.Errorf("failed to save market data: %w", err)
 	}
 	
+	// Update top holders if available
+	if len(tokenInfo.TopHolders) > 0 {
+		var holders []*models.TokenTopHolders
+		for _, holder := range tokenInfo.TopHolders {
+			holders = append(holders, &models.TokenTopHolders{
+				TokenID:       token.ID,
+				HolderAddress: holder.Address,
+				Balance:       holder.Balance,
+				Percentage:    holder.Percentage,
+				Rank:          holder.Rank,
+			})
+		}
+		
+		if err := s.UpdateTopHolders(ctx, token.ID, holders); err != nil {
+			s.logger.WithError(err).Warn("Failed to update top holders")
+		}
+	}
+	
 	s.logger.WithFields(logrus.Fields{
 		"token_id":     token.ID,
 		"mint_address": mintAddress,
+		"symbol":       token.Symbol,
 		"price_usd":    marketData.PriceUSD,
-	}).Info("Market data synced successfully")
+	}).Info("Market data synced from SolanaTracker")
 	
 	return marketData, nil
 }

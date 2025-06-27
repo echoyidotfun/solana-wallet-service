@@ -7,7 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
-	"github.com/wallet/service/internal/services/token"
+	"github.com/emiyaio/solana-wallet-service/internal/services/token"
 )
 
 // TokenHandler handles HTTP requests for token operations

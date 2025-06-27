@@ -3,10 +3,10 @@ package handlers
 import (
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
-	"github.com/wallet/service/internal/handlers/api"
-	"github.com/wallet/service/internal/handlers/websocket"
-	"github.com/wallet/service/internal/middleware"
-	"github.com/wallet/service/internal/services"
+	"github.com/emiyaio/solana-wallet-service/internal/handlers/api"
+	"github.com/emiyaio/solana-wallet-service/internal/handlers/websocket"
+	"github.com/emiyaio/solana-wallet-service/internal/middleware"
+	"github.com/emiyaio/solana-wallet-service/internal/services"
 )
 
 // Router holds all route handlers
@@ -16,6 +16,7 @@ type Router struct {
 	logger          *logrus.Logger
 	roomHandler     *api.RoomHandler
 	tokenHandler    *api.TokenHandler
+	aiHandler       *api.AIHandler
 	wsRoomHandler   *websocket.RoomWebSocketHandler
 }
 
@@ -33,6 +34,7 @@ func NewRouter(services *services.Services, logger *logrus.Logger) *Router {
 	// Create handlers
 	roomHandler := api.NewRoomHandler(services.Room, services.WebSocket, logger)
 	tokenHandler := api.NewTokenHandler(services.TokenMarket, services.TokenAnalysis, logger)
+	aiHandler := api.NewAIHandler(services.LangChain, logger)
 	wsRoomHandler := websocket.NewRoomWebSocketHandler(services.WebSocket, logger)
 	
 	return &Router{
@@ -41,6 +43,7 @@ func NewRouter(services *services.Services, logger *logrus.Logger) *Router {
 		logger:        logger,
 		roomHandler:   roomHandler,
 		tokenHandler:  tokenHandler,
+		aiHandler:     aiHandler,
 		wsRoomHandler: wsRoomHandler,
 	}
 }
@@ -59,6 +62,13 @@ func (r *Router) SetupRoutes() {
 		
 		// Token API routes  
 		r.tokenHandler.RegisterRoutes(v1)
+		
+		// AI API routes
+		aiGroup := v1.Group("/ai")
+		{
+			aiGroup.GET("/analyze/:token_identifier", r.aiHandler.AnalyzeToken)
+			aiGroup.POST("/chat", r.aiHandler.ChatCompletion)
+		}
 		
 		// WebSocket routes
 		r.wsRoomHandler.RegisterRoutes(v1)
@@ -121,6 +131,10 @@ func (r *Router) apiDocs(c *gin.Context) {
 				"GET /api/v1/tokens/{tokenId}/volatility":    "Get volatility metrics",
 				"GET /api/v1/tokens/{tokenId}/recommendation": "Get AI recommendation",
 				"POST /api/v1/tokens/batch/analyze":          "Batch analyze tokens",
+			},
+			"ai": map[string]interface{}{
+				"GET /api/v1/ai/analyze/{token_identifier}": "Get AI-powered token analysis",
+				"POST /api/v1/ai/chat":                      "Get AI chat completion for crypto questions",
 			},
 			"websockets": map[string]interface{}{
 				"GET /api/v1/ws/rooms/{roomId}":              "WebSocket connection for room (query: wallet=address)",

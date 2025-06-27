@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/wallet/service/internal/domain/models"
+	"github.com/emiyaio/solana-wallet-service/internal/domain/models"
 	"gorm.io/gorm"
 )
 

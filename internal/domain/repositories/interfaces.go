@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
-	"github.com/wallet/service/internal/domain/models"
+	"github.com/emiyaio/solana-wallet-service/internal/domain/models"
 )
 
 // TokenRepository defines the interface for token data access

@@ -7,8 +7,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
-	"github.com/wallet/service/internal/domain/models"
-	"github.com/wallet/service/internal/services/room"
+	"github.com/emiyaio/solana-wallet-service/internal/domain/models"
+	"github.com/emiyaio/solana-wallet-service/internal/services/room"
 )
 
 // RoomHandler handles HTTP requests for room management
