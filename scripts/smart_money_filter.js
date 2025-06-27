@@ -22,41 +22,41 @@ const PROGRAM_IDS = {
 // 2. 指令判别式 (Instruction Discriminators)
 const IX_DISCRIMINATORS = {
   [PROGRAM_IDS.OKX_DEX]: {
-    SWAP2: [65, 75, 63, 76, 235, 91, 91, 136],
+    SWAP2: [65, 75, 63, 76, 235, 91, 91, 136], // swap2
   },
   [PROGRAM_IDS.JUPITER]: {
-    ROUTE: [229, 23, 203, 151, 122, 227, 173, 42],
-    SHARED_ACCOUNTS_EXACT_OUT_ROUTE: [176, 209, 105, 168, 154, 125, 69, 62],
-    SHARED_ACCOUNTS_ROUTE: [193, 32, 155, 51, 65, 214, 156, 129],
+    ROUTE: [229, 23, 203, 151, 122, 227, 173, 42], // route
+    SHARED_ACCOUNTS_EXACT_OUT_ROUTE: [176, 209, 105, 168, 154, 125, 69, 62], // shared_accounts_exact_out_route
+    SHARED_ACCOUNTS_ROUTE: [193, 32, 155, 51, 65, 214, 156, 129], // shared_accounts_route
   },
   [PROGRAM_IDS.PUMP]: {
-    BUY: [102, 6, 61, 18, 1, 218, 235, 234],
-    SELL: [51, 230, 133, 164, 1, 127, 131, 173],
+    BUY: [102, 6, 61, 18, 1, 218, 235, 234], // buy
+    SELL: [51, 230, 133, 164, 1, 127, 131, 173], // sell
   },
   [PROGRAM_IDS.RAYDIUM]: {
-    SWAP: [9, 235, 55, 209, 35, 32, 2, 0], // Standard Raydium AMM Swap
+    SWAP: [9, 235, 55, 209, 35, 32, 2, 0], // swap
   },
   [PROGRAM_IDS.PUMP_AMM]: {
-    BUY: [102, 6, 61, 18, 1, 218, 235, 234],
-    SELL: [51, 230, 133, 164, 1, 127, 131, 173],
+    BUY: [102, 6, 61, 18, 1, 218, 235, 234], // buy
+    SELL: [51, 230, 133, 164, 1, 127, 131, 173], // sell
   },
   [PROGRAM_IDS.RAYDIUM_CAMM]: {
-    SWAPV2: [43, 4, 237, 11, 26, 201, 30, 98],
+    SWAPV2: [43, 4, 237, 11, 26, 201, 30, 98], // swapv2
   },
   [PROGRAM_IDS.RAYDIUM_CPMM]: {
-    SWAP_BASE_INPUT: [143, 190, 90, 218, 196, 30, 51, 222],
-    SWAP_BASE_OUTPUT: [55, 217, 98, 86, 163, 74, 180, 173],
+    SWAP_BASE_INPUT: [143, 190, 90, 218, 196, 30, 51, 222], // swapBaseInput
+    SWAP_BASE_OUTPUT: [55, 217, 98, 86, 163, 74, 180, 173], // swapBaseOutput
   },
   [PROGRAM_IDS.RAYDIUM_LAUNCHPAD]: {
-    BUY_EXACT_IN: [250, 234, 13, 123, 213, 156, 19, 236],
-    SELL_EXACT_IN: [149, 39, 222, 155, 211, 124, 152, 26],
+    BUY_EXACT_IN: [250, 234, 13, 123, 213, 156, 19, 236], // buy_exact_in
+    SELL_EXACT_IN: [149, 39, 222, 155, 211, 124, 152, 26], // sell_exact_in
   },
   [PROGRAM_IDS.METEORA_POOLS]: {
-    SWAP: [248, 198, 158, 145, 225, 117, 135, 200],
+    SWAP: [248, 198, 158, 145, 225, 117, 135, 200], // swap
   },
   [PROGRAM_IDS.BOOP]: {
-    SELL_TOKEN: [109, 61, 40, 187, 230, 176, 135, 174],
-    BUY_TOKEN: [138, 127, 14, 91, 38, 87, 115, 105],
+    SELL_TOKEN: [109, 61, 40, 187, 230, 176, 135, 174], // sell_token
+    BUY_TOKEN: [138, 127, 14, 91, 38, 87, 115, 105], // buy_token
   },
 };
 
